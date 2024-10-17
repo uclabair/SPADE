@@ -1,0 +1,1 @@
+python3 evaluate.py --exp_name 'bcr_nll_survival' --model_checkpoint '/raid/mpleasure/data_deepstorage/st_projects/bcr_downstream/survival_models/bcr_nll_survival/results/checkpoint_epoch_6_val_1.488885259628296_c_ind_0.6914893617021277.pth' --task 'bcr'

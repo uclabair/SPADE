@@ -1,0 +1,1 @@
+python3 main.py --exp_name 'bcr_nll_survival' --lr 1e-4 --max_epochs 20

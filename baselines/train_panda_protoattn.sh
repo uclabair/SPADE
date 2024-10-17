@@ -1,0 +1,11 @@
+python3 train_clean.py \
+    --feature_type 'uni' \
+    --train_df '/raid/PANDA_challenge/splits/train_df_isup_center.csv' \
+    --val_df '/raid/PANDA_challenge/splits/val_df_isup_center.csv' \
+    --test_df '/raid/PANDA_challenge/splits/test_df_isup_center.csv' \
+    --feat_path '/raid/PANDA_challenge/protoattn_feats/all_feats' \
+    --save_root '/raid/PANDA_challenge/protoattn_feats' \
+    --exp_name 'protoattn_1e-3' \
+    --task 'panda' \
+    --task_type 'multi' \
+    --lr 1e-3
