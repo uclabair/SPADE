@@ -11,14 +11,17 @@ Ekaterina Redekop*, Mara Pleasure*, Zichen Wang, Kimberly Flores, Anthony Sisk, 
 
 ## Training:
 
-```bash python main.py \ --protos 0,1,2 \ --exp_name uni_k16 ```
+```bash 
+python main.py \
+--protos 0,1,2 \
+--exp_name uni_k16
 
-### Extracting SPADE embeddings with distance weighting
+## Extracting SPADE embeddings with distance weighting
 
 We compute per-tile embeddings by routing path features through a Mixture-of-Data-Experts head. 
 
 ```bash
-python exoerts_routing.py \
+python experts_routing.py \
   --input_bags_dir path/to/bags \
   --output_dir path/to/out \
   --checkpoint_dir path/to/checkpoints \
