@@ -8,3 +8,11 @@ Ekaterina Redekop*, Mara Pleasure*, Zichen Wang, Kimberly Flores, Anthony Sisk, 
 
 ### Link to paper: https://arxiv.org/abs/2506.21857v1
 
+
+
+### Training:
+
+python main.py \
+  --protos 0,1,2 \
+  --exp_name uni_k16
+
