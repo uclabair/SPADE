@@ -15,6 +15,8 @@ Ekaterina Redekop*, Mara Pleasure*, Zichen Wang, Kimberly Flores, Anthony Sisk, 
 python main.py \
 --protos 0,1,2 \
 --exp_name uni_k16
+```
+
 
 ## Extracting SPADE embeddings with distance weighting
 
@@ -33,3 +35,4 @@ python experts_routing.py \
   --proj_dim 256 \
   --temperature 0.1 \
   --half --device cuda
+```
