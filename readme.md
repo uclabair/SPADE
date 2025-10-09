@@ -39,5 +39,5 @@ python experts_routing.py \
 
 
 ## Checkpoints
-We provide a link to a Drive[https://drive.google.com/drive/folders/FOLDER_ID?usp=sharing](https://drive.google.com/drive/folders/1kSMml162GGI816mfCdwmu__ArjJaOq98?usp=drive_link) with SPADE checkpoints.
+We provide a link to a \href{https://drive.google.com/drive/folders/FOLDER_ID?usp=sharing}{Drive} with SPADE checkpoints.
 
