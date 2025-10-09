@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import pdb
 from utils import initialize_weights
 import numpy as np
+from nystrom_attention import NystromAttention
+
 """
 A Modified Implementation of Deep Attention MIL
 """
@@ -295,7 +297,12 @@ class MIL_Attention_fc_concat(nn.Module):
 class MIL_Attention_fc(nn.Module):
     def __init__(self, gate = True, size_arg = "bleep", dropout = False, n_classes = 1):
         super(MIL_Attention_fc, self).__init__()
-        self.size_dict = {"uni": [1024, 512, 384], "bleep": [256, 512, 384]} #[256, 512, 384]
+        self.size_dict = {
+            "uni": [1024, 512, 384], 
+            "bleep": [256, 512, 384], 
+            'neighbor_512': [512, 256, 384], 
+            'conch': [512, 256, 384],
+            'virchow': [2560, 512, 384]} #[256, 512, 384]
         size = self.size_dict[size_arg]
 
         fc = [nn.Linear(size[0], size[1]), nn.ReLU()]
@@ -330,11 +337,15 @@ class MIL_Attention_fc(nn.Module):
 
 
     def forward(self, h, return_features=False, attention_only=False):
+        #print(f'H shape: {h.shape}')
         # h =
         h = h[0]
+        #print(f"H shape before attention: {h.shape}")
         A, h = self.attention_net(h)
-        # print(A.shape, h.shape)
+        #print(f"H shape after attention: {h.shape}")
+        #print(f"A shape before attention: {A.shape}")
         A = torch.transpose(A, 1, 0)
+        #print(A.shape)
         if attention_only:
             return A
         A_raw = A
@@ -349,12 +360,6 @@ class MIL_Attention_fc(nn.Module):
             results_dict.update({'features': M})
 
         return logits, Y_prob, Y_hat, A_raw, results_dict
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-from nystrom_attention import NystromAttention
 
 
 class TransLayer(nn.Module):
@@ -410,7 +415,43 @@ class PPEG(nn.Module):
 class TransMIL(nn.Module):
     def __init__(self, n_classes, size_arg='bleep'):
         super(TransMIL, self).__init__()
-        if size_arg == 'bleep':
+        self.size_dict = {
+            "uni": [1024, 512, 384], 
+            "bleep": [256, 512, 384], 
+            'neighbor_512': [512, 256, 384], 
+            'conch': [512, 256, 384],
+            'virchow': [2560, 512, 384]} #[256, 512, 384]
+        if size_arg == 'neighbor_512':
+            self.pos_layer = PPEG(dim=256)#512
+            self._fc1 = nn.Sequential(nn.Linear(512, 256), nn.ReLU()) #512
+            self.cls_token = nn.Parameter(torch.randn(1, 1, 256)) #512
+            self.n_classes = n_classes
+            self.layer1 = TransLayer(dim=256) #512
+            self.layer2 = TransLayer(dim=256) #512
+            self.norm = nn.LayerNorm(256)#512
+            self._fc2 = nn.Linear(256, self.n_classes)#512
+        elif size_arg == 'virchow':
+            self.pos_layer = PPEG(dim=512)#512
+            self._fc1 = nn.Sequential(nn.Linear(2560, 512), nn.ReLU()) #512
+            self.cls_token = nn.Parameter(torch.randn(1, 1, 512)) #512
+            self.n_classes = n_classes
+            self.layer1 = TransLayer(dim=512) #512
+            self.layer2 = TransLayer(dim=512) #512
+            self.norm = nn.LayerNorm(512)#512
+            self._fc2 = nn.Linear(512, self.n_classes)#512
+
+        elif size_arg == 'conch':
+            self.pos_layer = PPEG(dim=256)#512
+            self._fc1 = nn.Sequential(nn.Linear(512, 256), nn.ReLU()) #512
+            self.cls_token = nn.Parameter(torch.randn(1, 1, 256)) #512
+            self.n_classes = n_classes
+            self.layer1 = TransLayer(dim=256) #512
+            self.layer2 = TransLayer(dim=256) #512
+            self.norm = nn.LayerNorm(256)#512
+            self._fc2 = nn.Linear(256, self.n_classes)#512
+
+
+        elif size_arg == 'bleep':
             self.pos_layer = PPEG(dim=128)#512
             self._fc1 = nn.Sequential(nn.Linear(256, 128), nn.ReLU()) #512
             self.cls_token = nn.Parameter(torch.randn(1, 1, 128)) #512
@@ -432,6 +473,7 @@ class TransMIL(nn.Module):
     def forward(self, **kwargs):
 
         h = kwargs['data'].float() #[B, n, 1024]
+        #print(h.shape)
         
         h = self._fc1(h) #[B, n, 512]
         
