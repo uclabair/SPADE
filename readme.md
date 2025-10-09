@@ -11,7 +11,5 @@ Ekaterina Redekop*, Mara Pleasure*, Zichen Wang, Kimberly Flores, Anthony Sisk, 
 
 ## Training:
 
-```python main.py \
-  --protos 0,1,2 \
-  --exp_name uni_k16```
+<pre> ```bash python main.py \ --protos 0,1,2 \ --exp_name uni_k16 ``` </pre>
 
