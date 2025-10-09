@@ -36,3 +36,8 @@ python experts_routing.py \
   --temperature 0.1 \
   --half --device cuda
 ```
+
+
+## Checkpoints
+We provide a link to a Drive[https://drive.google.com/drive/folders/FOLDER_ID?usp=sharing](https://drive.google.com/drive/folders/1kSMml162GGI816mfCdwmu__ArjJaOq98?usp=drive_link) with SPADE checkpoints.
+
