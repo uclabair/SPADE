@@ -177,6 +177,20 @@ def train(train_loader, val_loader, model, criterion, args):
         }, f'{args.save_folder}/{args.exp_name}_{args.task}_{epoch}_{auc}.pt')
 
 
+case_id_mapping = {
+    'camelyon16' : ('image', 'binary'),
+    'cptac_lung': ('Case_ID', 'label'),
+    'panda': ('image_id', 'isup_grade'),
+    'ovarian': ('image_id',  'numeric_label'),
+    'tcga_brca': ('Case ID', 'label'),
+    'tcga_prad': ('Case ID', 'label'),
+    'plco_breast': ('plco_id', 'label_mapped'),
+    'brca_gene': ('Case ID', 'label'),
+    'crc_gene': ('Case ID', 'label'),
+
+
+
+}
 
 def main(args):
     args.save_folder = os.path.join(args.save_root, 'checkpoints')
@@ -185,22 +199,7 @@ def main(args):
     train_df = pd.read_csv(args.train_df)
     val_df = pd.read_csv(args.val_df)
 
-    if args.task == 'camelyon16':
-        id_col = 'image'
-        label_col = 'binary'
-        train_labels = list(train_df['binary'])
-
-    elif args.task == 'cptac_lung':
-        id_col = 'Case_ID'
-        label_col = 'label'
-        train_labels = list(train_df['label'])
-    
-    elif args.task == 'panda':
-        id_col = 'image_id'
-        label_col = 'isup_grade'
-        train_labels = list(train_df['isup_grade'])
-
-    elif args.task == 'plco_lung':
+    if args.task == 'plco_lung':
         train_dataset = PatchDataset_PLCOLung(
             train_df, mode = 'train', feat_path=args.feat_path
         )
@@ -209,39 +208,14 @@ def main(args):
         )
         train_labels = list(train_df['label'])
     
-    elif args.task == 'ovarian':
-        id_col = 'image_id'
-        label_col = 'numeric_label'
-        train_labels = list(train_df['numeric_label'])
-
-    elif args.task == 'tcga_brca':
-        id_col = 'Case ID'
-        label_col = 'label'
-        train_labels = list(train_df['label'])
-
-    elif args.task == 'tcga_prad':
-        id_col = 'Case ID'
-        label_col = 'label'
-        train_labels = list(train_df['label'])
-
-    elif args.task == 'plco_breast':
-        id_col = 'plco_id'
-        label_col = 'label_mapped'
-        train_labels = list(train_df['label_mapped'])
-
-    elif args.task == 'brca_gene':
-        id_col = 'Case ID'
-        label_col = 'label'
-        train_labels = list(train_df['label'])
-
-
-    elif args.task == 'crc_gene':
-        id_col = 'Case ID'
-        label_col = 'label'
-        train_labels = list(train_df['label'])
     else:
-        print('Pick valid argument!')
-        return 0
+        try:
+            id_col, label_col = case_id_mapping[args.task]
+            train_labels = list(train_df[label_col])
+        except:
+            print('Pick valid task!')
+            return 0
+    
 
     if args.task != 'plco_lung':
         train_dataset = PatchDataset(
