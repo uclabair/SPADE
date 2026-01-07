@@ -212,7 +212,8 @@ def validate_step(model, loader, loss_fn, print_every = 100, dump_results = Fals
     
     return results, dumps
 
-def train_cycle(train_loader, val_loader, args):
+def train_cycle(train_loader, val_loader, args, fold = None):
+    fold_metrics = {}
     if args.model_type == 'abmil':
         model = MIL_Attention_fc(input_size = args.input_dim, n_classes = args.n_label_bins)
     elif args.model_type == 'transmil':
@@ -234,16 +235,17 @@ def train_cycle(train_loader, val_loader, args):
         
         
     for epoch in range(args.max_epochs):
+        fold_metrics[epoch] = {}
         
         # train loop
-        print('#' * 10, f'TRAIN Epoch: {epoch}', '#' * 10)
+        print('#' * 10, f'TRAIN Epoch: {epoch}/{args.max_epochs}, Fold: {i}', '#' * 10)
         train_results = train_step(model, train_loader, optimizer, lr_scheduler, loss_fn, in_dropout = args.in_dropout,
                                                  print_every = args.print_every, accum_steps = args.accum_steps, args = args)
         
         writer = log_dict_tensorboard(writer, train_results, 'train/', epoch)
         
         # val loop
-        print('#' * 11, f'VAL Epoch: {epoch}', '#' * 11)
+        print('#' * 11, f'VAL Epoch: {epoch}, Fold: {i}', '#' * 11)
         
         val_results, _ = validate_step(
                         model, val_loader, loss_fn, print_every = args.print_every, args = args)
@@ -251,8 +253,21 @@ def train_cycle(train_loader, val_loader, args):
         
         writer = log_dict_tensorboard(writer, val_results, 'val/', epoch)
         
-        save_checkpoint(model, optimizer, epoch, val_results['loss'], train_results['loss'], train_results['c_index'], val_results['c_index'], args)
+        save_checkpoint(
+            model, 
+            optimizer, 
+            epoch, 
+            val_results['loss'], 
+            train_results['loss'], 
+            train_results['c_index'], 
+            val_results['c_index'], 
+            args)
+        fold_metrics[epoch]['train'] = train_results
+        fold_metrics[epoch]['val'] = val_results
 
+        
+    
+    return fold_metrics
 
 def run_test(test_loader, args):
     if args.model_type == 'abmil':

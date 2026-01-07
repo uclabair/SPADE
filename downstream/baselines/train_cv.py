@@ -265,8 +265,8 @@ def main(args):
 
         train_names = cv_folds[i]['train']['train_names']
         train_labels = cv_folds[i]['train']['train_labels']
-        test_names = cv_folds[i]['train']['test_names']
-        test_labels = cv_folds[i]['train']['test_labels']
+        test_names = cv_folds[i]['test']['test_names']
+        test_labels = cv_folds[i]['test']['test_labels']
 
         train_dataset = PatchDatasetCV(
             train_names, train_labels,

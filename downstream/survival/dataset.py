@@ -6,23 +6,33 @@ from glob import glob
 from tqdm import tqdm
 import pickle
 import os
+import h5py
+
+def load_h5_features(h5_path: str):
+    with h5py.File(h5_path, 'r') as f:
+        return np.array(f[features])
+
 
 class SurvivalDataset():
     def __init__(
             self, 
             embeds_root, 
             df, 
+            fold_names,
             survival_time_col, 
             censorship_col, 
             pid_col, 
             n_label_bins = 4, 
             label_bins = None, 
             from_bag = True, 
-            task = 'bcr'):
+            task = 'bcr',
+            h5_file = False):
         self.embeds_root = embeds_root
         self.df = df
         self.from_bag = from_bag
         self.task = task
+        self.fold_names = fold_names
+        self.h5_file = h5_file
         
         self.survival_time_col = survival_time_col
         self.censorship_col = censorship_col
@@ -42,6 +52,7 @@ class SurvivalDataset():
             self.target_col = disc_labels.name
         
         self.pid_col = pid_col
+        self.df = self.df.set_index(pid_col, drop=False)
         self.disc_labels = torch.tensor(disc_labels.values)
         self.survival_time_labels = torch.tensor(self.df[self.survival_time_col].values)
         self.censorship_labels = torch.tensor(self.df[censorship_col].values)
@@ -56,24 +67,19 @@ class SurvivalDataset():
         return self.label_bins
     
     def __getitem__(self, idx):
-        curr_row = self.df.iloc[idx]
-        slide_name = curr_row[self.pid_col]
+        slide_name = self.fold_names[idx]
+        curr_row = self.df.loc[slide_name]
         embed_root = os.path.join(self.embeds_root, slide_name)
         censorship = curr_row[self.censorship_col]
         time = curr_row[self.survival_time_col]
         target = curr_row[self.target_col]
         
         if self.from_bag:
-            if self.task in ['tcga_prad', 'tcga_ucec', 'plco_breast', 'tcga_brca']:
-                bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
-            elif self.task == 'bcr':
-                bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
-            elif self.task == 'plco_breast':
-                bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
-            elif self.task == 'plco_lung':
-                bag = np.load(curr_row['file'], allow_pickle=True)
+            if h5_file:
+                bag = load_h5_features(os.path.join(self.embeds_root, f'{slide_name}.h5'))
             else:
-                raise ValueError('issue with task selection')
+                bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
+           
         else:
             all_embeds = sorted(glob.glob(os.path.join(embed_root, '*.npy')))
         
@@ -95,7 +101,6 @@ class SurvivalDataset():
             'censorship': torch.tensor([censorship]),
             'label': torch.tensor([target])
         }
-            
         
         return out
     
@@ -128,6 +133,7 @@ class SurvivalDatasetTangle():
             self, 
             embeds_root, 
             df, 
+            fold_names,
             survival_time_col, 
             censorship_col, 
             pid_col, 
@@ -139,6 +145,7 @@ class SurvivalDatasetTangle():
         self.df = df
         self.from_bag = from_bag
         self.task = task
+        self.fold_names = fold_names
         
         self.survival_time_col = survival_time_col
         self.censorship_col = censorship_col
@@ -158,6 +165,7 @@ class SurvivalDatasetTangle():
             self.target_col = disc_labels.name
         
         self.pid_col = pid_col
+        self.df = self.df.set_index(pid_col, drop=False)
         self.disc_labels = torch.tensor(disc_labels.values)
         self.survival_time_labels = torch.tensor(self.df[self.survival_time_col].values)
         self.censorship_labels = torch.tensor(self.df[censorship_col].values)
@@ -172,8 +180,8 @@ class SurvivalDatasetTangle():
         return self.label_bins
     
     def __getitem__(self, idx):
-        curr_row = self.df.iloc[idx]
-        slide_name = curr_row[self.pid_col]
+        slide_name = self.fold_names[idx]
+        curr_row = self.df.loc[slide_name]
         embed_root = os.path.join(self.embeds_root, slide_name)
         censorship = curr_row[self.censorship_col]
         time = curr_row[self.survival_time_col]
