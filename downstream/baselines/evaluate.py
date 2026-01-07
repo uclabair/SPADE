@@ -7,7 +7,16 @@ import ast
 import pandas as pd
 import argparse, os, sys, datetime, glob, importlib, csv
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
-from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score,  auc, roc_curve, confusion_matrix, precision_recall_curve
+from sklearn.metrics import (
+    roc_auc_score, 
+    accuracy_score, 
+    precision_score, 
+    recall_score, 
+    f1_score,  
+    auc, 
+    roc_curve, 
+    confusion_matrix, 
+    precision_recall_curve)
 
 from torch import nn
 from torch.nn import L1Loss, CrossEntropyLoss
@@ -23,15 +32,7 @@ import os
 from torch.utils.data import Dataset
 from dataset import (
     PatchDataset_PLCO, 
-    PatchDataset_Camelyon, 
-    PatchDataset_CPTAC, 
-    PatchDataset_PANDA, 
-    PatchDataset_PLCOLung, 
-    PatchDataset_Ovarian, 
-    PatchDataset_TCGA, 
-    PatchDataset_PLCOBreast,
-    PatchDataset_BRCAGene,
-    PatchDataset_CRCGene
+    PatchDataset
     )
 from models import MIL_Attention_fc, TransMIL
 from torch.utils.data import DataLoader, Dataset

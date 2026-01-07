@@ -22,15 +22,7 @@ import os
 from torch.utils.data import Dataset
 from dataset import (
     PatchDataset_PLCO, 
-    PatchDataset_Camelyon, 
-    PatchDataset_CPTAC, 
-    PatchDataset_PANDA, 
-    PatchDataset_PLCOLung, 
-    PatchDataset_Ovarian,
-    PatchDataset_TCGA,
-    PatchDataset_PLCOBreast,
-    PatchDataset_BRCAGene,
-    PatchDataset_CRCGene
+    PatchDataset
     )
 from models import MIL_Attention_fc, TransMIL
 from torch.utils.data import DataLoader, Dataset
