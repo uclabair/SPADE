@@ -40,6 +40,7 @@ os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
 import torch.nn.functional as F
 import argparse
+import pickle as pkl
 
 class_count_mapping = {
     'cptac_lung': 1,
@@ -55,7 +56,9 @@ class_count_mapping = {
 }
 
 def calculate_metrics(preds, y_true, task_type = 'binary'):
-    if task_type == 'binary:'
+    preds = np.array(preds)
+    best_threshold = 0.5
+    if task_type == 'binary':
         results_arr = np.array(preds > best_threshold).astype(int)
         auc_ = roc_auc_score(np.array(y_true), np.array(preds))
         precision = precision_score(y_true, results_arr)
@@ -69,10 +72,10 @@ def calculate_metrics(preds, y_true, task_type = 'binary'):
         precision, recall, thresholds = precision_recall_curve(np.array(y_true), preds)
         auprc = auc(recall, precision)
         out_metrics = {
-            'auc': auc,
+            'auc': auc_,
             'precision': precision,
             'recall': recall,
-            'f1': f1
+            'f1': f1,
             'auprc': auprc,
             'sensitivity': sensitivity,
             'specificity': specificity
@@ -86,7 +89,7 @@ def calculate_metrics(preds, y_true, task_type = 'binary'):
         f1 = f1_score(y_true, results, average = 'macro')
 
         out_metrics = {
-            'auc': auc,
+            'auc': auc_,
             'precision_macro': precision,
             'recall_macro': recall,
             'f1_macro': f1
@@ -235,6 +238,7 @@ def train(train_loader, val_loader, model, criterion, args, save_folder, fold = 
         val_loss = epoch_loss / (val_step + 1)
         val_ce_epoch_loss_list.append(val_loss)
         val_metrics = calculate_metrics(Preds, Y_true, task_type = args.task_type)
+        val_auc = val_metrics['auc']
         fold_metrics[epoch]['val'] = val_metrics
         print(f'Val AUC: {val_metrics['auc']}')
         if val_metrics['auc'] > auc_best:
@@ -246,9 +250,14 @@ def train(train_loader, val_loader, model, criterion, args, save_folder, fold = 
         print('Saving model...')
         torch.save({
             'model': model.state_dict(),
-        }, f'{save_folder}/{args.exp_name}_{args.task}_{epoch}_{auc}.pt')
+        }, f'{save_folder}/{args.exp_name}_{args.task}_{epoch}_{val_auc}.pt')
 
     fold_metrics['best_epoch'] = best_epoch
+
+    with open(os.path.join(save_folder, f'fold_{fold}_metrics.pkl'), 'wb') as f:
+        pkl.dump(fold_metrics, f)
+
+    return fold_metrics
 
 def main(args):
 
@@ -263,9 +272,9 @@ def main(args):
         save_folder = os.path.join(args.save_root, f'checkpoints_fold_{i}')
         os.makedirs(save_folder, exist_ok=True)
 
-        train_names = cv_folds[i]['train']['train_names']
+        train_names = cv_folds[i]['train']['train_ids']
         train_labels = cv_folds[i]['train']['train_labels']
-        test_names = cv_folds[i]['test']['test_names']
+        test_names = cv_folds[i]['test']['test_ids']
         test_labels = cv_folds[i]['test']['test_labels']
 
         train_dataset = PatchDatasetCV(
@@ -276,10 +285,10 @@ def main(args):
             feat_path = args.feat_path, h5_file = args.h5_file)
 
         train_loader = DataLoader(train_dataset, batch_size = 1, sampler = get_sampler(train_labels), shuffle = False, num_workers = 2, persistent_workers = True)
-        val_loader = DataLoader(val_dataset, batch_size = 1, shuffle = False, num_workers = 2, persistent_workers = True)
+        test_loader = DataLoader(test_dataset, batch_size = 1, shuffle = False, num_workers = 2, persistent_workers = True)
 
         model, criterion = get_model_loss(args)
-        fold_metrics = train(train_loader, val_loader, model, criterion, args, save_folder, fold = i)
+        fold_metrics = train(train_loader, test_loader, model, criterion, args, save_folder, fold = i)
         cross_fold_metrics[i] = fold_metrics
     
     with open(os.path.join(args.save_root, f'cross_val_results_{args.task}.pkl'), 'wb') as f:

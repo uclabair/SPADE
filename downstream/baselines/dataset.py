@@ -95,7 +95,7 @@ class PatchDatasetCV(Dataset):
         self.h5_file = h5_file
 
     def __len__(self):
-        return len(self.df)
+        return len(self.names)
 
     def __getitem__(self, index):
 
