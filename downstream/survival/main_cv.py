@@ -52,8 +52,8 @@ def main(args):
         os.makedirs(args.results_dir, exist_ok=True)
         os.makedirs(args.writer_dir, exist_ok=True)
 
-        train_names = cv_folds[i]['train']['train_names']
-        test_names = cv_folds[i]['test']['test_names']
+        train_names = cv_folds[i]['train']['train_ids']
+        test_names = cv_folds[i]['test']['test_ids']
     
         df = pd.read_csv(args.labels, index_col = 0)
 

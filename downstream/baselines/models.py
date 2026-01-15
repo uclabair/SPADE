@@ -506,3 +506,17 @@ class TransMIL(nn.Module):
         Y_prob = F.softmax(logits, dim = 1)
         results_dict = {'logits': logits, 'Y_prob': Y_prob, 'Y_hat': Y_hat}
         return logits#, h #results_dict
+
+
+class LinearProbingModel(nn.Module):
+    def __init__(self, feature_dim=512, hidden_dim1=128, hidden_dim2=64, num_classes=1):
+        super(LinearProbingModel, self).__init__()
+        self.classifier = nn.Sequential(
+            nn.Linear(feature_dim, hidden_dim1),  # First hidden layer
+            nn.ReLU(),                            # Activation
+            nn.Linear(hidden_dim1, hidden_dim2),   # Second hidden layer
+            nn.ReLU(),                            # Activation
+            nn.Linear(hidden_dim2, num_classes)    # Output layer
+        )
+    def forward(self, x):
+        return self.classifier(x)

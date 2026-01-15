@@ -32,7 +32,7 @@ from torch.utils.data import Dataset
 from dataset import (
     PatchDatasetCV
     )
-from models import MIL_Attention_fc, TransMIL
+from models import MIL_Attention_fc, TransMIL, LinearProbingModel
 from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import roc_auc_score, accuracy_score
 np.random.seed(0)
@@ -115,9 +115,9 @@ def get_sampler(labels_train):
     return sampler
 
 def get_model_loss(args):
+
     if args.task in ['cptac_lung', 'plco_lung', 'tcga_brca', 'brca_gene', 'crc_gene']:
         criterion = nn.BCEWithLogitsLoss()
-
     else:
         criterion = nn.CrossEntropyLoss()
 
@@ -125,12 +125,13 @@ def get_model_loss(args):
         model = MIL_Attention_fc(
             size_arg = args.feature_type, 
             n_classes=class_count_mapping[args.task]).cuda()
-    else:
+    elif args.model_type == 'transmil':
         model = TransMIL(
             size_arg = args.feature_type, 
             n_classes=class_count_mapping[args.task]).cuda()
-
+            
     return model, criterion
+
 
 def train(train_loader, val_loader, model, criterion, args, save_folder, fold = None):
     optimizer = torch.optim.AdamW(params = model.parameters(), lr = args.lr)
@@ -168,8 +169,10 @@ def train(train_loader, val_loader, model, criterion, args, save_folder, fold = 
             optimizer.zero_grad()
             if args.model_type == 'transmil':
                 logits = model(data=feature)
-            else:
+            elif args.model_type == 'abmil':
                 logits, Y_prob, Y_hat, A_raw, results_dict = model(feature)
+            else:
+                logits = model(feature)
 
             if args.task_type == 'binary':
                 logits = logits[:, 0]
@@ -212,8 +215,10 @@ def train(train_loader, val_loader, model, criterion, args, save_folder, fold = 
 
                 if args.model_type == 'transmil':
                     logits = model(data=feature)
-                else:
+                elif args.model_type == 'abmil':
                     logits, Y_prob, Y_hat, A_raw, results_dict = model(feature)
+                else:
+                    logits = model(feature)
 
                 if args.task_type == 'binary':
                     logits = logits[:, 0]
@@ -284,8 +289,8 @@ def main(args):
             test_names, test_labels,
             feat_path = args.feat_path, h5_file = args.h5_file)
 
-        train_loader = DataLoader(train_dataset, batch_size = 1, sampler = get_sampler(train_labels), shuffle = False, num_workers = 2, persistent_workers = True)
-        test_loader = DataLoader(test_dataset, batch_size = 1, shuffle = False, num_workers = 2, persistent_workers = True)
+        train_loader = DataLoader(train_dataset, batch_size = args.batch_size, sampler = get_sampler(train_labels), shuffle = False, num_workers = 2, persistent_workers = True)
+        test_loader = DataLoader(test_dataset, batch_size = args.batch_size, shuffle = False, num_workers = 2, persistent_workers = True)
 
         model, criterion = get_model_loss(args)
         fold_metrics = train(train_loader, test_loader, model, criterion, args, save_folder, fold = i)
@@ -332,6 +337,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--model_type', default = 'abmil'
+    )
+    parser.add_argument(
+        '--batch_size', default = 1, type = int
     )
     args = parser.parse_args()
 

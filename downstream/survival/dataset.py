@@ -58,10 +58,10 @@ class SurvivalDataset():
         self.censorship_labels = torch.tensor(self.df[censorship_col].values)
         
     def get_pids(self):
-        return self.df[self.pid_col].values
+        return self.fold_names
     
     def __len__(self):
-        return len(self.df)
+        return len(self.fold_names)
     
     def get_label_bins(self):
         return self.label_bins
@@ -75,7 +75,7 @@ class SurvivalDataset():
         target = curr_row[self.target_col]
         
         if self.from_bag:
-            if h5_file:
+            if self.h5_file:
                 bag = load_h5_features(os.path.join(self.embeds_root, f'{slide_name}.h5'))
             else:
                 bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))

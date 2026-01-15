@@ -238,14 +238,14 @@ def train_cycle(train_loader, val_loader, args, fold = None):
         fold_metrics[epoch] = {}
         
         # train loop
-        print('#' * 10, f'TRAIN Epoch: {epoch}/{args.max_epochs}, Fold: {i}', '#' * 10)
+        print('#' * 10, f'TRAIN Epoch: {epoch}/{args.max_epochs}, Fold: {fold}', '#' * 10)
         train_results = train_step(model, train_loader, optimizer, lr_scheduler, loss_fn, in_dropout = args.in_dropout,
                                                  print_every = args.print_every, accum_steps = args.accum_steps, args = args)
         
         writer = log_dict_tensorboard(writer, train_results, 'train/', epoch)
         
         # val loop
-        print('#' * 11, f'VAL Epoch: {epoch}, Fold: {i}', '#' * 11)
+        print('#' * 11, f'VAL Epoch: {epoch}, Fold: {fold}', '#' * 11)
         
         val_results, _ = validate_step(
                         model, val_loader, loss_fn, print_every = args.print_every, args = args)
