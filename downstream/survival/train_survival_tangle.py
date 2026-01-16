@@ -62,7 +62,7 @@ def train_step(model, loader, optimizer, lr_scheduler, loss_fn, in_dropout = 0.0
     
     for batch_id, batch in enumerate(loader):
         data = batch['img'].cuda()
-        print(data.shape)
+        #(data.shape)
         if len(data.shape) > 3:
             data = data.squeeze(0)
         label = batch['label'].cuda()
@@ -75,7 +75,7 @@ def train_step(model, loader, optimizer, lr_scheduler, loss_fn, in_dropout = 0.0
         attn_mask = None
         
 
-        logits = model(data=data)
+        logits = model(data)
             
         #(logits, y_prob, y_hat, a_raw, results_dict) = model(data)
         
@@ -153,7 +153,7 @@ def validate_step(model, loader, loss_fn, print_every = 100, dump_results = Fals
             attn_mask = None
             
 
-            logits = model(data=data)
+            logits = model(data)
             
             out, log_dict = process_surv(logits, label, censorship, loss_fn)
             
@@ -209,11 +209,13 @@ def validate_step(model, loader, loss_fn, print_every = 100, dump_results = Fals
     
     return results, dumps
 
-def train_cycle(train_loader, val_loader, args):
+def train_cycle(train_loader, val_loader, args, fold = None):
+    fold_metrics = {}
     if args.model_type == 'simple':
-        model = LinearProbingSimple(input_size = args.input_dim, n_classes = args.n_label_bins)
+        model = LinearProbingSimple(feature_dim = 512, num_classes = args.n_label_bins)
     else:
-        model = LinearProbingModel(size_arg = args.feature_type, n_classes=args.n_label_bins)
+        model = LinearProbingModel(feature_dim = 512, num_classes=args.n_label_bins)
+    
     model = model.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
     writer = SummaryWriter(args.writer_dir, flush_secs = 15)
@@ -231,16 +233,17 @@ def train_cycle(train_loader, val_loader, args):
         
         
     for epoch in range(args.max_epochs):
+        fold_metrics[epoch] = {}
         
         # train loop
-        print('#' * 10, f'TRAIN Epoch: {epoch}', '#' * 10)
+        print('#' * 10, f'TRAIN Epoch: {epoch}/{args.max_epochs}, Fold: {fold}', '#' * 10)
         train_results = train_step(model, train_loader, optimizer, lr_scheduler, loss_fn, in_dropout = args.in_dropout,
                                                  print_every = args.print_every, accum_steps = args.accum_steps, args = args)
         
         writer = log_dict_tensorboard(writer, train_results, 'train/', epoch)
         
         # val loop
-        print('#' * 11, f'VAL Epoch: {epoch}', '#' * 11)
+        print('#' * 11, f'VAL Epoch: {epoch}, Fold: {fold}', '#' * 11)
         
         val_results, _ = validate_step(
                         model, val_loader, loss_fn, print_every = args.print_every, args = args)
@@ -248,14 +251,26 @@ def train_cycle(train_loader, val_loader, args):
         
         writer = log_dict_tensorboard(writer, val_results, 'val/', epoch)
         
-        save_checkpoint(model, optimizer, epoch, val_results['loss'], train_results['loss'], train_results['c_index'], val_results['c_index'], args)
+        save_checkpoint(
+            model, 
+            optimizer, epoch, 
+            val_results['loss'], 
+            train_results['loss'], 
+            train_results['c_index'], 
+            val_results['c_index'], 
+            args
+            )
+        fold_metrics[epoch]['train'] = train_results
+        fold_metrics[epoch]['val'] = val_results
+
+    return fold_metrics
 
 
 def run_test(test_loader, args):
     if args.model_type == 'simple':
-        model = LinearProbingSimple(input_size = args.input_dim, n_classes = args.n_label_bins)
+        model = LinearProbingSimple(feature_dim = 512, n_classes = args.n_label_bins)
     else:
-        model = LinearProbingModel(size_arg = args.feature_type, n_classes=args.n_label_bins)
+        model = LinearProbingModel(feature_dim = 512, n_classes=args.n_label_bins)
     
     state_dict = torch.load(args.model_checkpoint)
     model.load_state_dict(state_dict['model_state_dict'])

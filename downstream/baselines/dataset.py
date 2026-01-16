@@ -108,6 +108,18 @@ class PatchDatasetCV(Dataset):
             else:
                 feature_bag = os.path.join(self.feat_path, f'{id_}.npy')
                 features = np.array(np.load(feature_bag, allow_pickle = True))
+
+            if len(features) == 0:
+                id_ = self.names[0]
+                label = self.labels[0]
+                if self.h5_file:
+                    feature_file = os.path.join(self.feat_path, f'{id_}.h5')
+                    features = load_h5_features(feature_file)
+                else:
+                    feature_bag = os.path.join(self.feat_path, f'{id_}.npy')
+                    features = np.array(np.load(feature_bag, allow_pickle = True))
+            
+
         
         except:
             id_ = self.names[0]

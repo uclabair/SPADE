@@ -27,80 +27,68 @@ def set_up_path_df(folder):
     return file_df
 
 def main(args):
+    fold_count = args.fold_count
+    with open(args.splits, 'rb') as f:
+        cv_folds = pkl.load(f)
 
-    ## set up save dirs
-    save_folder = os.path.join(args.save_root, args.exp_name)
-    os.makedirs(save_folder, exist_ok=True)
+    cross_fold_metrics = {}
+    cross_fold_save_folder = os.path.join(
+        args.save_root, 
+        args.exp_name
+        )
 
-    args.results_dir = os.path.join(save_folder, 'results')
-    args.writer_dir = os.path.join(save_folder, 'writer')
+    for i in range(fold_count):
+        print(f'Starting fold: {i}')
+        save_folder = os.path.join(
+            args.save_root, 
+            args.exp_name, 
+            f'fold_{i}'
+            )
+        os.makedirs(save_folder, exist_ok=True)
 
-    os.makedirs(args.results_dir, exist_ok=True)
-    os.makedirs(args.writer_dir, exist_ok=True)
+        args.results_dir = os.path.join(save_folder, 'results')
+        args.writer_dir = os.path.join(save_folder, 'writer')
 
-    ## set up dataloaders
-    if args.task in ['tcga_prad','tcga_ucec', 'tcga_brca', 'plco_breast']:
-        df_train = pd.read_csv(args.train_csv, index_col = 0).reset_index(drop = True)
-        df_val = pd.read_csv(args.val_csv, index_col = 0).reset_index(drop = True)
+        os.makedirs(args.results_dir, exist_ok=True)
+        os.makedirs(args.writer_dir, exist_ok=True)
 
-        if args.task in ['tcga_ucec', 'tcga_brca']:
-            df_train = df_train.dropna(subset = ['DSS', 'DSS.time'])
-            df_val = df_val.dropna(subset = ['DSS', 'DSS.time'])
-
-            df_train = df_train.reset_index(drop = True)
-            df_val = df_val.reset_index(drop = True)
-
+        train_names = cv_folds[i]['train']['train_ids']
+        test_names = cv_folds[i]['test']['test_ids']
+    
+        df = pd.read_csv(args.labels, index_col = 0)
 
         train_dataset = SurvivalDatasetTangle(
-            args.embeds_root, df_train, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
+            args.bag_root, 
+            df, 
+            train_names, 
+            survival_time_col=args.survival_time_col, 
+            censorship_col=args.censorship_col, 
+            pid_col = args.pid_col, 
+            task = args.task,
+            h5_file = args.h5_file
         )
-        val_dataset = SurvivalDatasetTangle(
-            args.embeds_root, df_val, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
+        test_dataset = SurvivalDatasetTangle(
+            args.bag_root, 
+            df, 
+            test_names, 
+            survival_time_col=args.survival_time_col, 
+            censorship_col=args.censorship_col, 
+            pid_col = args.pid_col, 
+            task = args.task,
+            h5_file = args.h5_file
         )
-        
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = True)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = False)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = False)
 
+        fold_metrics = train_cycle(train_loader, test_loader, args, fold = i)
+        with open(os.path.join(args.results_dir, f'fold_{i}_{args.task}.pkl'), 'wb') as f:
+            pkl.dump(fold_metrics, f)
 
-    elif args.task == 'bcr':
-        with open(args.splits, 'rb') as f:
-            splits = pkl.load(f)
-        labels = pd.read_csv(args.labels, index_col = 0)
+        cross_fold_metrics[i] = fold_metrics
 
-        df_train = labels[labels[args.pid_col].isin(splits['train'])]
-        df_val = labels[labels[args.pid_col].isin(splits['val'])]
+    with open(os.path.join(args.save_root, f'cross_val_results_{args.task}.pkl'), 'wb') as f:
+        pkl.dump(cross_fold_metrics, f)
 
-        train_dataset = SurvivalDatasetTangle(
-            args.embeds_root, df_train, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
-        )
-        val_dataset = SurvivalDatasetTangle(
-            args.embeds_root, df_val, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
-        )
-        
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = True)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = False)
-    elif args.task == 'plco_lung':
-        df_train = set_up_path_df(args.)
-        df_val = set_up_path_df(args.val_bag_root)
-        labels = pd.read_csv(args.labels, index_col = 0)
-        print(labels.shape)
-
-        df_train = df_train.merge(labels, on = 'plco_id', how = 'left')
-        df_val = df_val.merge(labels, on = 'plco_id', how = 'left')
-
-        train_dataset = SurvivalDatasetTangle(
-            args.bag_root, df_train, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
-        )
-        val_dataset = SurvivalDatasetTangle(
-            args.bag_root, df_val, survival_time_col=args.survival_time_col, censorship_col=args.censorship_col, pid_col = args.pid_col, task = args.task
-        )
-
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = True)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = args.batch_size, num_workers = args.num_workers, shuffle = False)
-
-
-    ## train model
-    train_cycle(train_loader, val_loader, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -119,16 +107,16 @@ if __name__ == "__main__":
         '--labels', type = str, default = '/raid/mpleasure/data_deepstorage/st_projects/bcr_downstream/bcr_survival_data_labels.csv'
     )
     parser.add_argument(
-        '--embeds_root', type = str, default = ''
+        '--bag_root', type = str, default = ''
     )
     parser.add_argument(
         '--task', type = str, default = 'bcr', choices = ['bcr', 'plco_lung', 'plco_breast', 'tcga_prad', 'tcga_ucec', 'tcga_brca', 'plco_lung_conch']
     )
     parser.add_argument(
-        '--train_bag_root', type = str, default = '/raid/mpleasure/PLCO/parsed_data/lung/splits/train_uni_features'
+        '--fold_count', type = int, default = 5
     )
     parser.add_argument(
-        '--val_bag_root', type = str, default = '/raid/mpleasure/PLCO/parsed_data/lung/splits/val_uni_features'
+        '--h5_file', type = bool, default = False
     )
 
 
@@ -192,17 +180,6 @@ if __name__ == "__main__":
     parser.add_argument(
         '--feature_type', default = 'bleep'
     )
-
-    parser.add_argument(
-        '--train_csv', type = str, default = ''
-    )
-    parser.add_argument(
-        '--val_csv', type = str, default = ''
-    )
-    parser.add_argument(
-        '--test_csv', type = str, default = ''
-    )
-
 
     args = parser.parse_args()
     main(args)

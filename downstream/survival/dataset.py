@@ -140,12 +140,14 @@ class SurvivalDatasetTangle():
             n_label_bins = 4, 
             label_bins = None, 
             from_bag = True, 
-            task = 'bcr'):
+            task = 'bcr',
+            h5_file = False):
         self.embeds_root = embeds_root
         self.df = df
         self.from_bag = from_bag
         self.task = task
         self.fold_names = fold_names
+        self.h5_file = h5_file
         
         self.survival_time_col = survival_time_col
         self.censorship_col = censorship_col
@@ -171,10 +173,10 @@ class SurvivalDatasetTangle():
         self.censorship_labels = torch.tensor(self.df[censorship_col].values)
         
     def get_pids(self):
-        return self.df[self.pid_col].values
+        return self.fold_names
     
     def __len__(self):
-        return len(self.df)
+        return len(self.fold_names)
     
     def get_label_bins(self):
         return self.label_bins
@@ -187,28 +189,18 @@ class SurvivalDatasetTangle():
         time = curr_row[self.survival_time_col]
         target = curr_row[self.target_col]
         
-        if self.task == 'plco_breast':
-            file_path = '/raid/mpleasure/PLCO/parsed_data_breast/breast/plco_id_to_image_name_map_cleaned.pkl'
-            with open(file_path, 'rb') as file:
-                breast_image_list = pickle.load(file)
-            curr_id = curr_row['plco_id']
-
-            embeds = []
-            for item in breast_image_list[curr_id]:
-                try:
-                    embeds.append(list(np.load(os.path.join(self.embeds_root, f'{item}.npy'), allow_pickle=True)))
-                except:
-                    continue
-        else:
-            embeds = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
-            #print(embeds.shape)
-       
+        if self.from_bag:
+            if self.h5_file:
+                bag = load_h5_features(os.path.join(self.embeds_root, f'{slide_name}.h5'))
+            else:
+                bag = np.load(os.path.join(self.embeds_root, f'{slide_name}.npy'))
+           
+        
         out = {
-            'img': embeds,
+            'img': bag,
             'survival_time': torch.tensor([time]),
             'censorship': torch.tensor([censorship]),
             'label': torch.tensor([target])
         }
             
-        
         return out
