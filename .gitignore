@@ -1,1 +1,3 @@
 *.sh
+configs
+configs/config_full_run.yaml

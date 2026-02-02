@@ -295,7 +295,7 @@ class MIL_Attention_fc_concat(nn.Module):
         return logits, Y_prob, Y_hat, A_raw, results_dict
 
 class MIL_Attention_fc(nn.Module):
-    def __init__(self, gate = True, size_arg = "bleep", dropout = False, n_classes = 1):
+    def __init__(self, gate = True, size_arg = "bleep", dropout = False, n_classes = 1, hidden_dim = None, attn_dim = None):
         super(MIL_Attention_fc, self).__init__()
         self.size_dict = {
             "uni": [1024, 512, 384], 
@@ -304,6 +304,11 @@ class MIL_Attention_fc(nn.Module):
             'conch': [512, 256, 384],
             'virchow': [2560, 512, 384]} #[256, 512, 384]
         size = self.size_dict[size_arg]
+
+        if hidden_dim is not None:
+            size[1] = hidden_dim
+        if attn_dim is not None:
+            size[2] = attn_dim
 
         fc = [nn.Linear(size[0], size[1]), nn.ReLU()]
         if dropout:
