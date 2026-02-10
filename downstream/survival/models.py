@@ -320,22 +320,28 @@ class MIL_Attention_fc_concat(nn.Module):
         return logits, Y_prob, Y_hat, A_raw, results_dict
 
 class MIL_Attention_fc(nn.Module):
-    def __init__(self, gate = True, size_arg = "bleep", dropout = False, n_classes = 1, input_size = 1024):
+    def __init__(self, gate = True, size_arg = "bleep", dropout = False, n_classes = 1, input_size = 1024, hidden_dim = None, attn_dim = None):
         super(MIL_Attention_fc, self).__init__()
         self.size_dict = {
-            "uni": [1024, 512, 384], 
-            "bleep": [256, 512, 384], 
+            "uni": [1024, 512, 384],
+            "bleep": [256, 512, 384],
             'neighbor_512': [512, 256, 384],
+            'conch': [512, 256, 384],
             'virchow': [2560, 512, 384]}#[256, 512, 384]
         if input_size == 1024:
-            size = self.size_dict['uni']
+            size = list(self.size_dict['uni'])
         elif input_size == 256:
-            size = self.size_dict['bleep']
+            size = list(self.size_dict['bleep'])
         elif input_size == 512:
-            size = self.size_dict['neighbor_512']
+            size = list(self.size_dict['neighbor_512'])
         elif input_size == 2560:
-            size = self.size_dict['virchow']
-        
+            size = list(self.size_dict['virchow'])
+
+        # Allow override of hidden dimensions for hyperparameter tuning
+        if hidden_dim is not None:
+            size[1] = hidden_dim
+        if attn_dim is not None:
+            size[2] = attn_dim
 
         fc = [nn.Linear(size[0], size[1]), nn.ReLU()]
         if dropout:
@@ -440,9 +446,13 @@ class PPEG(nn.Module):
 
 
 class TransMIL(nn.Module):
-    def __init__(self, n_classes, size_arg='bleep'):
+    def __init__(self, n_classes, size_arg='bleep', hidden_dim=None):
         super(TransMIL, self).__init__()
-        self.size_dict = {"uni": [1024, 512, 384], "bleep": [256, 512, 384], 'neighbor_512': [512, 256, 384]} #[256, 512, 384]
+        self.size_dict = {"uni": [1024, 512, 384], "bleep": [256, 512, 384], 'neighbor_512': [512, 256, 384], 'conch': [512, 256, 384]} #[256, 512, 384]
+
+        # Allow hidden_dim override for hyperparameter tuning
+        self.hidden_dim_override = hidden_dim
+
         if size_arg == 'neighbor_512':
             self.pos_layer = PPEG(dim=256)#512
             self._fc1 = nn.Sequential(nn.Linear(512, 256), nn.ReLU()) #512

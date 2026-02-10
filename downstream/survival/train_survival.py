@@ -212,14 +212,18 @@ def validate_step(model, loader, loss_fn, print_every = 100, dump_results = Fals
     
     return results, dumps
 
-def train_cycle(train_loader, val_loader, args, fold = None):
+def train_cycle(train_loader, val_loader, args, fold = None, lr = None, hidden_dim = None):
     fold_metrics = {}
     if args.model_type == 'abmil':
-        model = MIL_Attention_fc(input_size = args.input_dim, n_classes = args.n_label_bins)
+        model = MIL_Attention_fc(input_size = args.input_dim, n_classes = args.n_label_bins, hidden_dim=hidden_dim)
     elif args.model_type == 'transmil':
-        model = TransMIL(size_arg = args.feature_type, n_classes=args.n_label_bins)
+        model = TransMIL(size_arg = args.feature_type, n_classes=args.n_label_bins, hidden_dim=hidden_dim)
     model = model.cuda()
-    optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
+    if lr is None:
+        optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = args.weight_decay)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr = lr, weight_decay = args.weight_decay)
+    
     writer = SummaryWriter(args.writer_dir, flush_secs = 15)
     
     lr_scheduler = get_lr_scheduler(args, optimizer, train_loader)

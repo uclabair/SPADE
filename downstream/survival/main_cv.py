@@ -12,9 +12,14 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from utils import *
+from losses import *
+from models import *
 from dataset import SurvivalDataset
 import argparse
 from train_survival import train_cycle
+from tqdm import tqdm
+from sksurv.metrics import concordance_index_censored
+
 
 DEFAULT_LR_SEARCH = [1e-5, 5e-5, 1e-4, 5e-4]
 DEFAULT_HIDDEN_DIM_SEARCH = [256, 384, 512]
@@ -41,7 +46,7 @@ def run_hyperparam_search_survival(train_loader, val_loader, args, save_folder, 
     elif args.loss_fn == 'cox':
         loss_fn = CoxLoss()
 
-    for lr in lr_search:
+    for lr in tqdm(lr_search):
         for hidden_dim in hidden_dim_search:
             print(f'  Trying lr={lr}, hidden_dim={hidden_dim}')
 
@@ -52,13 +57,13 @@ def run_hyperparam_search_survival(train_loader, val_loader, args, save_folder, 
             model = model.cuda()
 
             search_epochs = min(args.max_epochs, 10)
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=args.weight_decay)
+            optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.01)
 
             best_epoch_cindex = 0
 
             for epoch in range(search_epochs):
                 model.train()
-                for batch in train_loader:
+                for batch in tqdm(train_loader):
                     data = batch['img'].cuda()
                     if len(data.shape) > 3:
                         data = data.squeeze(0)
@@ -139,7 +144,6 @@ def run_hyperparam_search_survival(train_loader, val_loader, args, save_folder, 
     return best_lr, best_hidden_dim, best_val_cindex, hyperparam_results
 
 def evaluate_survival_model(model, loader, loss_fn, args):
-    """Evaluate survival model and return risk scores and labels."""
     model.eval()
     all_risk_scores = []
     all_censorships = []
@@ -185,7 +189,6 @@ def ensemble_survival_predictions(all_fold_risks):
 
 
 def save_results_to_csv(results_list, save_path):
-    """Save all results to a CSV file."""
     df = pd.DataFrame(results_list)
     df.to_csv(save_path, index=False)
     print(f'Results saved to: {save_path}')
@@ -207,6 +210,8 @@ def main(args):
         fold_keys = list(range(args.fold_count))
         has_holdout = False
 
+    print(fold_keys)
+
     all_results = []
     hyperparam_results_all = []
     cross_fold_metrics = {}
@@ -217,7 +222,6 @@ def main(args):
 
     df = pd.read_csv(args.labels, index_col=0)
 
-    # Setup loss function
     if args.loss_fn == 'nll':
         loss_fn = NLLSurvLoss(alpha=args.nll_alpha)
     elif args.loss_fn == 'cox':
@@ -290,7 +294,7 @@ def main(args):
 
         if args.hyperparam_search:
             _, _, _, hp_results = run_hyperparam_search_survival(
-                train_loader, val_loader, args, args.save_root, fold_idx, lr_search, hidden_dim_search
+                train_loader, val_loader, args, args.save_root, i, lr_search, hidden_dim_search
             )
 
             for hp_res in hp_results:
@@ -304,7 +308,7 @@ def main(args):
                     'model_type': args.model_type,
                     'feature_type': args.feature_type,
                     'phase': 'hyperparam_search',
-                    'fold': fold_idx,
+                    'fold': i,
                     'lr': hp_res['lr'],
                     'hidden_dim': hp_res['hidden_dim'],
                     'val_cindex': hp_res['val_cindex'],
@@ -412,67 +416,65 @@ def main(args):
     print(f'Mean CV C-index: {np.mean(fold_val_cindices):.4f} +/- {np.std(fold_val_cindices):.4f}')
 
     holdout_results = None
-    if has_holdout:
-        print('PHASE 3: Holdout Test Evaluation (Ensemble)')
-        holdout_data = cv_folds['holdout_test']
-        test_names = holdout_data['test_ids']
+    print('PHASE 3: Holdout Test Evaluation (Ensemble)')
+    holdout_data = cv_folds['holdout_test']
+    test_names = holdout_data['test_ids']
 
-        test_dataset = SurvivalDataset(
-            args.bag_root, df, test_names,
-            survival_time_col=args.survival_time_col,
-            censorship_col=args.censorship_col,
-            pid_col=args.pid_col, task=args.task, h5_file=args.h5_file
-        )
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
-                                                   num_workers=args.num_workers, shuffle=False)
+    test_dataset = SurvivalDataset(
+        args.bag_root, df, test_names,
+        survival_time_col=args.survival_time_col,
+        censorship_col=args.censorship_col,
+        pid_col=args.pid_col, task=args.task, h5_file=args.h5_file
+    )
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
+                                                num_workers=args.num_workers, shuffle=False)
 
-        all_fold_risks = []
-        individual_cindices = []
+    all_fold_risks = []
+    individual_cindices = []
 
-        for fold_idx, model in enumerate(fold_models):
-            risks, censorships, event_times = evaluate_survival_model(model, test_loader, loss_fn, args)
-            all_fold_risks.append(risks)
+    for fold_idx, model in enumerate(fold_models):
+        risks, censorships, event_times = evaluate_survival_model(model, test_loader, loss_fn, args)
+        all_fold_risks.append(risks)
 
-            c_index = concordance_index_censored(
-                (1 - censorships).astype(bool), event_times, risks, tied_tol=1e-08)[0]
-            individual_cindices.append(c_index)
-            print(f'Fold {fold_idx} model - Test C-index: {c_index:.4f}')
-
-            all_results.append({
-                'task': args.task,
-                'model_type': args.model_type,
-                'feature_type': args.feature_type,
-                'phase': 'holdout_individual',
-                'fold': fold_idx,
-                'lr': best_lr,
-                'hidden_dim': best_hidden_dim,
-                'test_cindex': c_index,
-                'timestamp': timestamp
-            })
-
-        # Ensemble predictions
-        ensemble_risks = ensemble_survival_predictions(all_fold_risks)
-        ensemble_cindex = concordance_index_censored(
-            (1 - censorships).astype(bool), event_times, ensemble_risks, tied_tol=1e-08)[0]
-
-        print(f'\nEnsemble Test C-index: {ensemble_cindex:.4f}')
-
-        holdout_results = {
-            'ensemble_cindex': ensemble_cindex,
-            'individual_cindices': individual_cindices
-        }
+        c_index = concordance_index_censored(
+            (1 - censorships).astype(bool), event_times, risks, tied_tol=1e-08)[0]
+        individual_cindices.append(c_index)
+        print(f'Fold {fold_idx} model - Test C-index: {c_index:.4f}')
 
         all_results.append({
             'task': args.task,
             'model_type': args.model_type,
             'feature_type': args.feature_type,
-            'phase': 'holdout_ensemble',
-            'fold': 'ensemble',
+            'phase': 'holdout_individual',
+            'fold': fold_idx,
             'lr': best_lr,
             'hidden_dim': best_hidden_dim,
-            'test_cindex': ensemble_cindex,
+            'test_cindex': c_index,
             'timestamp': timestamp
         })
+
+    ensemble_risks = ensemble_survival_predictions(all_fold_risks)
+    ensemble_cindex = concordance_index_censored(
+        (1 - censorships).astype(bool), event_times, ensemble_risks, tied_tol=1e-08)[0]
+
+    print(f'\nEnsemble Test C-index: {ensemble_cindex:.4f}')
+
+    holdout_results = {
+        'ensemble_cindex': ensemble_cindex,
+        'individual_cindices': individual_cindices
+    }
+
+    all_results.append({
+        'task': args.task,
+        'model_type': args.model_type,
+        'feature_type': args.feature_type,
+        'phase': 'holdout_ensemble',
+        'fold': 'ensemble',
+        'lr': best_lr,
+        'hidden_dim': best_hidden_dim,
+        'test_cindex': ensemble_cindex,
+        'timestamp': timestamp
+    })
 
     #cross_fold_metrics['hyperparam_summary'] = hyperparam_summary
     os.makedirs(args.save_root, exist_ok=True)
@@ -498,17 +500,14 @@ def main(args):
         hp_csv_path = os.path.join(args.save_root, f'hyperparam_search_{args.task}_{timestamp}.csv')
         save_results_to_csv(hyperparam_results_all, hp_csv_path)
 
-    print(f'{"="*70}')
     print('FINAL SUMMARY')
     print(f'Task: {args.task}')
     print(f'Model: {args.model_type}')
     print(f'Feature type: {args.feature_type}')
     print(f'Best hyperparameters: lr={best_lr}, hidden_dim={best_hidden_dim}')
     print(f'CV Mean C-index: {np.mean(fold_val_cindices):.4f} +/- {np.std(fold_val_cindices):.4f}')
-    if holdout_results:
-        print(f'Holdout Ensemble C-index: {holdout_results["ensemble_cindex"]:.4f}')
+    print(f'Holdout Ensemble C-index: {holdout_results["ensemble_cindex"]:.4f}')
     print(f'Results saved to: {args.save_root}')
-    print(f'{"="*70}\n')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

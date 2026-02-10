@@ -509,7 +509,7 @@ def main(args):
         #cross_fold_metrics[i] = fold_metrics
     if args.hyperparam_search and hyperparam_scores:
         best_hp = max(hyperparam_scores.keys(), key=lambda k: np.mean(hyperparam_scores[k]))
-        best_lr, best_hidden_dim = best_hp
+        best_lr, best_hidden_dim, best_wd = best_hp
         best_mean_auc = np.mean(hyperparam_scores[best_hp])
         print(f'\nBest hyperparameters: lr={best_lr}, hidden_dim={best_hidden_dim}, wd={best_wd}')
         print(f'Mean CV AUC: {best_mean_auc:.4f} +/- {np.std(hyperparam_scores[best_hp]):.4f}')
